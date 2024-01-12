@@ -48,11 +48,24 @@ def load_level(filename):
 
 
 class Tile(pygame.sprite.Sprite):
-    def __init__(self, pos_x, pos_y, tiles_group, all_sprites_group, image):
-        super().__init__(tiles_group, all_sprites_group)
+    def __init__(self, pos_x, pos_y, image, *sprite_groups, hp=None, mode=None):
+        super().__init__(*sprite_groups)
         self.image = image
         self.rect = self.image.get_rect().move(
             64 * pos_x + 50, 64 * pos_y + 50)
+        self.hp = hp
+        self.mode = mode
+
+    def update(self):
+        try:
+            if [int(self.hp)] and self.hp == 0:
+                self.kill()
+        except TypeError:
+            pass
+
+    def get_damage(self):
+        if self.hp:
+            self.hp -= 1
 
 
 class Wall(pygame.sprite.Sprite):
@@ -164,5 +177,3 @@ class Player(pygame.sprite.Sprite):
 
     def get_direction(self):
         return (self.direction_x, self.direction_y)
-
-
