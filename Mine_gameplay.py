@@ -142,7 +142,7 @@ def create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, sto
                 image = pygame.Surface([64, 64])
                 image.fill(color)
 
-                Tile(pos_x, pos_y, image, sprite_groups, hp=hp)
+                Tile(pos_x, pos_y, image, sprite_groups, hp=hp, mode=level[pos_y][pos_x])
 
 
 def create_walls(sprite_group_collisions, all_sprites):
@@ -169,6 +169,7 @@ clock = pygame.time.Clock()
 running = True
 VELOCITY = 3
 FPS = 60
+player_hit_cooldown = 700
 
 loot_images_dict = {'s': (218, 218, 226), 'z': (133, 134, 5), 'w': (243, 23, 23), 'm': (238, 118, 32),
                     'g': (238, 200, 63), 'a': (65, 191, 240)}
@@ -203,6 +204,7 @@ def main(entrance_x, entrance_y):
     interactive_zone_out = create_interactive_zone_out(out_coords[0], out_coords[1], player, all_sprites)
 
     time_delta = clock.tick(FPS) / 1000.0
+    player_last_hit_time = -1500
 
     while running:
         for event in pygame.event.get():
@@ -213,18 +215,37 @@ def main(entrance_x, entrance_y):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_w:
                     player.set_direction(player.get_direction()[0], -VELOCITY)
+                    player.set_hit_direction(0, -1)
                 if event.key == pygame.K_d:
                     player.set_direction(VELOCITY, player.get_direction()[1])
+                    player.set_hit_direction(1, 0)
                 if event.key == pygame.K_s:
                     player.set_direction(player.get_direction()[0], VELOCITY)
+                    player.set_hit_direction(0, 1)
                 if event.key == pygame.K_a:
                     player.set_direction(-VELOCITY, player.get_direction()[1])
+                    player.set_hit_direction(-1, 0)
                 if event.key == pygame.K_e:
                     if interactive_zone_out.player_in_zone():
                         entrance_x = (9 if out_coords[0] == 0 else (0 if out_coords[0] == 9 else out_coords[0]))
                         entrance_y = (4 if out_coords[1] == 0 else (0 if out_coords[1] == 4 else out_coords[1]))
                         write_quest_stats_in_file(modes, quantities, current_quantities)
                         main(entrance_x, entrance_y)
+            if event.type == pygame.MOUSEBUTTONDOWN and pygame.time.get_ticks() - player_last_hit_time > \
+                    player_hit_cooldown:
+                player_last_hit_time = pygame.time.get_ticks()
+
+                player_centre_coords = player.get_centre_coords()
+                player_hit_direction = player.get_hit_direction()
+                point_of_hit_coords = tuple(coord + 64 * hit_direction for coord, hit_direction in
+                                            zip(player_centre_coords, player_hit_direction))
+
+                if player.get_current_tool() == 'pick':
+                    for tile in stones_and_ores.sprites():
+                        if tile.point_in_rect(*point_of_hit_coords):
+                            if tile.get_hp() == 1 and tile.get_mode() in modes:
+                                current_quantities[modes.index(tile.get_mode())] += 1
+                            tile.get_damage()
 
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_w:
@@ -236,6 +257,9 @@ def main(entrance_x, entrance_y):
                 if event.key == pygame.K_a:
                     player.set_direction(0, player.get_direction()[1])
 
+            if event.type == pygame.MOUSEWHEEL:
+                player.change_current_tool()
+
             manager.process_events(event)
 
         screen.fill((0, 0, 0))
@@ -245,7 +269,6 @@ def main(entrance_x, entrance_y):
         all_sprites.update()
 
         all_sprites.draw(screen)
-        #draw_necessary_items_current_quantities([1, 1, 1])
         draw_necessary_items_current_quantities(current_quantities)
 
         manager.draw_ui(screen)

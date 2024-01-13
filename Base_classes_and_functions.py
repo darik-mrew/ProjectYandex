@@ -56,16 +56,23 @@ class Tile(pygame.sprite.Sprite):
         self.hp = hp
         self.mode = mode
 
-    def update(self):
-        try:
-            if [int(self.hp)] and self.hp == 0:
-                self.kill()
-        except TypeError:
-            pass
-
     def get_damage(self):
         if self.hp:
             self.hp -= 1
+
+        if self.hp == 0:
+            self.kill()
+
+    def point_in_rect(self, x, y):
+        if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
+            return True
+        return False
+
+    def get_mode(self):
+        return self.mode
+
+    def get_hp(self):
+        return self.hp
 
 
 class Wall(pygame.sprite.Sprite):
@@ -182,10 +189,16 @@ class Player(pygame.sprite.Sprite):
         self.direction_x = 0
         self.direction_y = 0
         self.current_tool = 'pick'
+        self.hit_direction_x = 0
+        self.hit_direction_y = 0
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
         self.direction_y = direction_y
+
+    def set_hit_direction(self, x, y):
+        self.hit_direction_x = x
+        self.hit_direction_y = y
 
     def update(self):
         self.rect = self.rect.move(self.direction_x, self.direction_y)
@@ -195,3 +208,14 @@ class Player(pygame.sprite.Sprite):
     def get_direction(self):
         return (self.direction_x, self.direction_y)
 
+    def get_hit_direction(self):
+        return self.hit_direction_x, self.hit_direction_y
+
+    def get_centre_coords(self):
+        return self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2
+
+    def get_current_tool(self):
+        return self.current_tool
+
+    def change_current_tool(self):
+        self.current_tool = ('axe' if self.current_tool == 'pick' else 'pick')
