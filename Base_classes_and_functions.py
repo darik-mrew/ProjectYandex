@@ -150,6 +150,22 @@ class Quest_as_window(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, (199, 174, 8), (302, 32), 15)
 
 
+class Quest_as_interface(pygame.sprite.Sprite):  # неправильная отрисовка, координаты должны быть указаны в системе спрайта
+    def __init__(self, images, quantities, coords, sprite_group):
+        super().__init__(sprite_group)
+
+        self.image = pygame.Surface([520, 40])
+        self.image.fill((0, 0, 0))
+        self.rect = self.image.get_rect().move(coords[0], coords[1])
+
+        for x, image, quantity in zip(range(0, 420, 140), images, quantities):
+            font = pygame.font.Font(None, 40)
+            text = font.render(f'/{quantity}', True, (100, 255, 100))
+            self.image.blit(text, (x + 25, 10))
+
+            self.image.blit(image, (x + 60, 5))
+
+
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y, player_group, all_sprites_group, sprite_group_collisions, image=None):
         super().__init__(player_group, all_sprites_group)
@@ -161,10 +177,11 @@ class Player(pygame.sprite.Sprite):
 
         self.image = player_image
         self.rect = self.image.get_rect().move(
-            64 * pos_x + 49, 64 * pos_y + 49)
+            64 * pos_x + 49 + 1, 64 * pos_y + 49 + 1)
         self.sprite_group_collisions = sprite_group_collisions
         self.direction_x = 0
         self.direction_y = 0
+        self.current_tool = 'pick'
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -177,3 +194,4 @@ class Player(pygame.sprite.Sprite):
 
     def get_direction(self):
         return (self.direction_x, self.direction_y)
+

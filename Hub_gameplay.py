@@ -297,7 +297,7 @@ def main_hub():
                     if cur_action == 'mine_interact':
                         with open('data/Quest.txt', 'w') as txt_file:
                             for item, quantity in zip(chosen_quest[0], chosen_quest[1]):
-                                txt_file.write(item + ' ' + str(quantity) + '\n')
+                                txt_file.write(item + ' ' + str(quantity) + ' 0\n')
                             txt_file.write('reward ' + str(chosen_quest[2]) + '\n')
                             txt_file.write('completed false')
                         terminate()    # сделать переход в шахту
