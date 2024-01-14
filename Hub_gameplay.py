@@ -13,12 +13,11 @@ def create_walls():
 
 
 def create_roof(sprite_group):
-    roof_surface = pygame.Surface([64 * 4, 64 * 3])
-    roof_surface.fill((255, 0, 0))
-
+    roof_image = pygame.image.load('data/roof.png').convert()
     roof = pygame.sprite.Sprite(sprite_group)
-    roof.image = roof_surface
+    roof.image = roof_image
     roof.rect = roof.image.get_rect().move(49, 49)
+    return roof
 
 
 def create_tiles():
