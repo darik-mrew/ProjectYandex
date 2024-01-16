@@ -2,6 +2,7 @@ import pygame
 import sys
 import os
 import random
+from collections import deque
 
 
 def intersection_rectangles(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2):
@@ -14,6 +15,42 @@ def intersection_rectangles(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2):
     s3 = (bx1 >= ax1 and bx1 <= ax2) or (bx2 >= ax1 and bx2 <= ax2)
     s4 = (by1 >= ay1 and by1 <= ay2) or (by2 >= ay1 and by2 <= ay2)
     return True if ((s1 and s2) or (s3 and s4)) or ((s1 and s4) or (s3 and s2)) else False
+
+
+def get_next_nodes_AI(x, y, level):
+    check_next_node = lambda x, y: True if 0 <= x <= 9 and 0 <= y <= 4 and level[y][x] != 'b' else False
+    ways = [-1, 0], [0, -1], [1, 0], [0, 1]
+    return [(x + dx, y + dy) for dx, dy in ways if check_next_node(x + dx, y + dy)]
+
+
+def bfs(start, goal, graph):
+    queue = deque([start])
+    visited = {start: None}
+    can_find = False
+
+    while queue:
+        cur_node = queue.popleft()
+        if cur_node == goal:
+            can_find = True
+            break
+
+        next_nodes = graph[cur_node]
+        for next_node in next_nodes:
+            if next_node not in visited:
+                queue.append(next_node)
+                visited[next_node] = cur_node
+
+    if not can_find:
+        return None
+
+    path = [goal]
+    cur_node = goal
+    while cur_node != start:
+        cur_node = visited[cur_node]
+        path.append(cur_node)
+
+    path = list(reversed(path[:-1]))
+    return path
 
 
 def load_image(name, colorkey=None):
@@ -73,6 +110,11 @@ class Tile(pygame.sprite.Sprite):
 
     def get_hp(self):
         return self.hp
+
+    def get_pos_as_board(self):   # отсчет с нуля
+        pos_x = (self.rect.x - 50) // 64
+        pos_y = (self.rect.y - 50) // 64
+        return pos_x, pos_y
 
 
 class Wall(pygame.sprite.Sprite):
@@ -157,7 +199,7 @@ class Quest_as_window(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, (199, 174, 8), (302, 32), 15)
 
 
-class Quest_as_interface(pygame.sprite.Sprite):  # неправильная отрисовка, координаты должны быть указаны в системе спрайта
+class Quest_as_interface(pygame.sprite.Sprite):
     def __init__(self, images, quantities, coords, sprite_group):
         super().__init__(sprite_group)
 
@@ -219,3 +261,103 @@ class Player(pygame.sprite.Sprite):
 
     def change_current_tool(self):
         self.current_tool = ('axe' if self.current_tool == 'pick' else 'pick')
+
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, pos_x, pos_y, hp, mode, image, *sprite_groups):
+        super().__init__(*sprite_groups)
+
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect = self.rect.move(64 * pos_x + 50 + (64 // 2 - self.rect.width // 2), 64 * pos_y + 50 +
+                                   (64 // 2 - self.rect.height // 2))
+        self.direction_x = 0
+        self.direction_y = 0
+        self.hit_direction_x = 0
+        self.hit_direction_y = 0
+        self.route = []
+        self.hp = hp
+        self.mode = mode
+        self.VELOCITY = 2
+        self.timer = 0
+        self.last_hit_time = 0
+        self.cooldown = False
+
+    def set_direction(self, direction_x, direction_y):
+        self.direction_x = direction_x
+        self.direction_y = direction_y
+
+    def set_hit_direction(self, x, y):
+        self.hit_direction_x = x
+        self.hit_direction_y = y
+
+    def get_direction(self):
+        return (self.direction_x, self.direction_y)
+
+    def get_hit_direction(self):
+        return self.hit_direction_x, self.hit_direction_y
+
+    def get_centre_coords(self):
+        return self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2
+
+    def get_pos_as_board(self):   # отсчет с нуля
+        pos_x = (self.rect.x + self.rect.width // 2 - 50) // 64
+        pos_y = (self.rect.y + self.rect.height // 2 - 50) // 64
+        return pos_x, pos_y
+
+    def get_damage(self):
+        if self.hp:
+            self.hp -= 1
+
+        if self.hp == 0:
+            self.kill()
+
+    def get_mode(self):
+        return self.mode
+
+    def get_hp(self):
+        return self.hp
+
+    def update(self):   # прописать врагам возможность бить
+        if self.route and not self.cooldown:
+            if self.get_centre_coords() == (self.route[0][0] * 64 + 50 + 32, self.route[0][1] * 64 + 50 + 32):
+                self.route = self.route[1:]
+
+            if self.route != []:
+                direction_x, direction_y = 0, 0
+                if self.get_centre_coords()[0] != self.route[0][0] * 64 + 50 + 32:
+                    direction_x = (self.route[0][0] * 64 + 50 + 32 - self.get_centre_coords()[0]) / \
+                        abs(self.route[0][0] * 64 + 50 + 32 - self.get_centre_coords()[0])
+                if self.get_centre_coords()[1] != self.route[0][1] * 64 + 50 + 32:
+                    direction_y = (self.route[0][1] * 64 + 50 + 32 - self.get_centre_coords()[1]) / \
+                        abs(self.route[0][1] * 64 + 50 + 32 - self.get_centre_coords()[1])
+
+                self.set_direction(direction_x * self.VELOCITY, direction_y * self.VELOCITY)
+                self.rect = self.rect.move(self.direction_x, self.direction_y)
+
+            elif self.route == []:
+                self.set_direction(0, 0)
+                self.cooldown = True
+                self.last_hit_time = pygame.time.get_ticks()
+
+        if self.timer - self.last_hit_time > 1500:
+            self.cooldown = False
+
+        self.timer = pygame.time.get_ticks()
+
+    def point_in_rect(self, x, y):
+        if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
+            return True
+        return False
+
+    def determine_the_route(self, level, player_coords):
+        graph = {}
+
+        for y, row in enumerate(level):
+            for x, col in enumerate(row):
+                if col != 'b':
+                    graph[(x, y)] = graph.get((x, y), []) + get_next_nodes_AI(x, y, level)
+
+        self.route = bfs(self.get_pos_as_board(), player_coords, graph)
+
+

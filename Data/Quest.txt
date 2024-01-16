@@ -1,4 +1,3 @@
-a 6 4
-m 7 6
-reward 13
+m 7 9
+reward 7
 completed false

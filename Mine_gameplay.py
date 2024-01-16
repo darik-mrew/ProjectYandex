@@ -1,7 +1,4 @@
-import random
 import copy
-
-import pygame
 import pygame_gui
 from Base_classes_and_functions import *
 
@@ -23,7 +20,7 @@ def get_player_start_coords(entrance_x, entrance_y):
     return player_start_x, player_start_y
 
 
-def get_quest():   # # #
+def get_quest():
     with open('data/Quest.txt') as txt_file:
         data = [i.strip() for i in txt_file.readlines()]
     modes = [i.split()[0] for i in data[:-2]]
@@ -80,6 +77,16 @@ def create_level(entrance_x, entrance_y):
     return level, (out_x, out_y)
 
 
+def create_matrix_to_AI(level):
+    for y in range(len(level)):
+        for x in range(len(level[0])):
+            if level[y][x] in ['s', 'w', 'z', 'p']:
+                level[y][x] = 'i'
+            if level[y][x] != 'i':
+                level[y][x] = 'b'
+    return level
+
+
 def create_hearts(all_sprites, heart_group):
     for x in range(50, 171, 60):
         heart = pygame.sprite.Sprite(all_sprites, heart_group)
@@ -126,7 +133,8 @@ def create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, sto
                 surface = pygame.Surface([32, 32])
                 surface.fill(cod_to_image[level[pos_y][pos_x]][0])
                 hp = cod_to_image[level[pos_y][pos_x]][1]
-                # определить класс Enemy
+                Enemy(pos_x, pos_y, hp, level[pos_y][pos_x], surface, all_sprites,
+                      enemies_group)
             else:
                 if level[pos_y][pos_x] != 'i':
                     sprite_groups.extend([sprite_group_collisions, stones_and_ores])
@@ -201,10 +209,11 @@ def main(entrance_x, entrance_y):
     player_x, player_y = get_player_start_coords(entrance_x, entrance_y)
     player = Player(player_x, player_y, player_group, all_sprites, sprite_group_collisions,
                     load_image('main character.png', -1))
+    AI_matrix = create_matrix_to_AI(level)
     interactive_zone_out = create_interactive_zone_out(out_coords[0], out_coords[1], player, all_sprites)
 
     time_delta = clock.tick(FPS) / 1000.0
-    player_last_hit_time = -1500
+    player_last_hit_time = -700
 
     while running:
         for event in pygame.event.get():
@@ -243,8 +252,14 @@ def main(entrance_x, entrance_y):
                 if player.get_current_tool() == 'pick':
                     for tile in stones_and_ores.sprites():
                         if tile.point_in_rect(*point_of_hit_coords):
-                            if tile.get_hp() == 1 and tile.get_mode() in modes:
-                                current_quantities[modes.index(tile.get_mode())] += 1
+                            if tile.get_hp() == 1:
+                                AI_matrix[tile.get_pos_as_board()[1]][tile.get_pos_as_board()[0]] = 'i'
+
+                                for enemy in enemies_group.sprites():
+                                    enemy.determine_the_route(AI_matrix, (player_x, player_y))
+
+                                if tile.get_mode() in modes:
+                                    current_quantities[modes.index(tile.get_mode())] += 1
                             tile.get_damage()
 
             if event.type == pygame.KEYUP:
@@ -262,6 +277,13 @@ def main(entrance_x, entrance_y):
 
             manager.process_events(event)
 
+        if (player.get_centre_coords()[0] - 50) // 64 != player_x or (player.get_centre_coords()[1] - 50) // 64\
+                != player_y:
+            player_x, player_y = (player.get_centre_coords()[0] - 50) // 64, (player.get_centre_coords()[1] - 50) // 64
+
+            for enemy in enemies_group.sprites():
+                enemy.determine_the_route(AI_matrix, (player_x, player_y))
+
         screen.fill((0, 0, 0))
 
         manager.update(time_delta)
@@ -269,6 +291,7 @@ def main(entrance_x, entrance_y):
         all_sprites.update()
 
         all_sprites.draw(screen)
+        enemies_group.draw(screen)
         draw_necessary_items_current_quantities(current_quantities)
 
         manager.draw_ui(screen)
