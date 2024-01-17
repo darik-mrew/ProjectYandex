@@ -1,4 +1,6 @@
 import copy
+
+import pygame
 import pygame_gui
 from Base_classes_and_functions import *
 
@@ -44,7 +46,6 @@ def write_quest_stats_in_file(modes, quantities, current_quantities):
 
 def create_level(entrance_x, entrance_y):
     objects = {'r': 0.6, 'm': 0.04, 'g': 0.04, 'a': 0.02, 'i': 0.3}
-    enemies = ['s', 'w', 'z']
     level = [random.choices(list(objects.keys()), weights=list(objects.values()), k=10) for _ in range(5)]
 
     for y in range(len(level)):
@@ -62,7 +63,7 @@ def create_level(entrance_x, entrance_y):
     for y in range(len(level)):
         for x in range(len(level[0])):
             if level[y][x] == 'i' and random.random() <= 0.1:
-                level[y][x] = random.choice(enemies)
+                level[y][x] = 's'
 
     level[entrance_y][entrance_x] = 'e'
     for neighbour in get_neighbours(entrance_x, entrance_y, level):
@@ -88,12 +89,19 @@ def create_matrix_to_AI(level):
 
 
 def create_hearts(all_sprites, heart_group):
-    for x in range(50, 171, 60):
-        heart = pygame.sprite.Sprite(all_sprites, heart_group)
-        image = pygame.Surface([40, 40])
-        image.fill((255, 0, 0))
-        heart.image = image
-        heart.rect = image.get_rect().move(x, 375)
+    heart = pygame.sprite.Sprite(all_sprites, heart_group)
+    image = pygame.Surface([40, 40])
+    image.fill((255, 0, 0))
+    heart.image = image
+    heart.rect = image.get_rect().move(50, 375)
+
+
+def draw_quantity_of_hp_points(hp):
+    screen.blit(pygame.Surface([60, 60]), (100, 375))
+
+    font = pygame.font.Font(None, 40)
+    text = font.render(f'{hp}', True, (100, 255, 100))
+    screen.blit(text, (100, 382))
 
 
 def create_quest_interface(all_sprites):   # # #
@@ -114,16 +122,15 @@ def draw_necessary_items_current_quantities(quantities):
         screen.blit(text, (x + 10, 375 + 10))
 
 
-def create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores):
-    cod_to_image = {'s': ((218, 218, 226), 5), 'z': ((133, 134, 5), 4), 'w': ((243, 23, 23), 3),
-                    'm': ((238, 118, 32), 1), 'g': ((238, 200, 63), 2), 'a': ((65, 191, 240), 3),
-                    'i': ((0, 0, 0), None), 'e': ((0, 0, 255), None), 'o': ((0, 255, 0), None),
-                    'r': ((222, 218, 218), 1)}
+def create_tiles(player, level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores):
+    cod_to_image = {'s': ((218, 218, 226), 5), 'm': ((238, 118, 32), 1), 'g': ((238, 200, 63), 2),
+                    'a': ((65, 191, 240), 3), 'i': ((0, 0, 0), None), 'e': ((0, 0, 255), None),
+                    'o': ((0, 255, 0), None), 'r': ((222, 218, 218), 1)}
 
     for pos_y in range(len(level)):
         for pos_x in range(len(level[pos_y])):
             sprite_groups = [all_sprites]
-            if level[pos_y][pos_x] in ['s', 'z', 'w']:
+            if level[pos_y][pos_x] == 's':
                 color = cod_to_image['i'][0]
                 image = pygame.Surface([64, 64])
                 image.fill(color)
@@ -133,8 +140,7 @@ def create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, sto
                 surface = pygame.Surface([32, 32])
                 surface.fill(cod_to_image[level[pos_y][pos_x]][0])
                 hp = cod_to_image[level[pos_y][pos_x]][1]
-                Enemy(pos_x, pos_y, hp, level[pos_y][pos_x], surface, all_sprites,
-                      enemies_group)
+                Enemy(pos_x, pos_y, hp, level[pos_y][pos_x], surface, player, all_sprites, enemies_group)
             else:
                 if level[pos_y][pos_x] != 'i':
                     sprite_groups.extend([sprite_group_collisions, stones_and_ores])
@@ -154,10 +160,10 @@ def create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, sto
 
 
 def create_walls(sprite_group_collisions, all_sprites):
-    Wall((50, 50), 2, 320, sprite_group_collisions, all_sprites)
-    Wall((689, 50), 2, 320, sprite_group_collisions, all_sprites)
-    Wall((50, 50), 640, 2, sprite_group_collisions, all_sprites)
-    Wall((50, 369), 640, 2, sprite_group_collisions, all_sprites)
+    Wall((48, 50), 2, 320, sprite_group_collisions, all_sprites)
+    Wall((690, 50), 2, 320, sprite_group_collisions, all_sprites)
+    Wall((50, 48), 640, 2, sprite_group_collisions, all_sprites)
+    Wall((50, 370), 640, 2, sprite_group_collisions, all_sprites)
 
 
 def create_interactive_zone_out(out_x, out_y, player, sprite_group):
@@ -202,15 +208,19 @@ def main(entrance_x, entrance_y):
     hearts_group = pygame.sprite.Group()
     # создание уровня
     level, out_coords = create_level(entrance_x, entrance_y)
-    create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores)
+    #create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores)
     create_walls(sprite_group_collisions, all_sprites)
     create_hearts(all_sprites, hearts_group)
     create_quest_interface(all_sprites)
     player_x, player_y = get_player_start_coords(entrance_x, entrance_y)
     player = Player(player_x, player_y, player_group, all_sprites, sprite_group_collisions,
                     load_image('main character.png', -1))
-    AI_matrix = create_matrix_to_AI(level)
+    create_tiles(player, level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores)
     interactive_zone_out = create_interactive_zone_out(out_coords[0], out_coords[1], player, all_sprites)
+
+    AI_matrix = create_matrix_to_AI(level)
+    for enemy in enemies_group.sprites():
+        enemy.determine_the_route(AI_matrix, (player_x, player_y))
 
     time_delta = clock.tick(FPS) / 1000.0
     player_last_hit_time = -700
@@ -260,7 +270,7 @@ def main(entrance_x, entrance_y):
 
                                 if tile.get_mode() in modes:
                                     current_quantities[modes.index(tile.get_mode())] += 1
-                            tile.get_damage()
+                            tile.take_damage()
 
             if event.type == pygame.KEYUP:
                 if event.key == pygame.K_w:
@@ -292,12 +302,13 @@ def main(entrance_x, entrance_y):
 
         all_sprites.draw(screen)
         enemies_group.draw(screen)
+        player_group.draw(screen)
         draw_necessary_items_current_quantities(current_quantities)
+        draw_quantity_of_hp_points(player.get_hp())
 
         manager.draw_ui(screen)
 
         pygame.display.flip()
         clock.tick(FPS)
-
 
 main(5, 0)

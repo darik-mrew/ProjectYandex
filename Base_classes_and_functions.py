@@ -93,7 +93,7 @@ class Tile(pygame.sprite.Sprite):
         self.hp = hp
         self.mode = mode
 
-    def get_damage(self):
+    def take_damage(self):
         if self.hp:
             self.hp -= 1
 
@@ -233,6 +233,10 @@ class Player(pygame.sprite.Sprite):
         self.current_tool = 'pick'
         self.hit_direction_x = 0
         self.hit_direction_y = 0
+        with open('data/Characteristics.txt') as txt_file:
+            data = [i.strip() for i in txt_file.readlines()]
+        self.axe_damage = int(data[1].split()[1])
+        self.hp = int(data[0].split()[1])
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -247,6 +251,14 @@ class Player(pygame.sprite.Sprite):
         if pygame.sprite.spritecollideany(self, self.sprite_group_collisions):
             self.rect = self.rect.move(-self.direction_x, -self.direction_y)
 
+    def take_damage(self):
+        if self.hp:
+            self.hp -= 1
+            print(1)
+
+        if self.hp == 0:
+            self.kill()
+
     def get_direction(self):
         return (self.direction_x, self.direction_y)
 
@@ -259,12 +271,20 @@ class Player(pygame.sprite.Sprite):
     def get_current_tool(self):
         return self.current_tool
 
+    def get_hp(self):
+        return self.hp
+
     def change_current_tool(self):
         self.current_tool = ('axe' if self.current_tool == 'pick' else 'pick')
 
+    def point_in_rect(self, x, y):
+        if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
+            return True
+        return False
+
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, pos_x, pos_y, hp, mode, image, *sprite_groups):
+    def __init__(self, pos_x, pos_y, hp, mode, image, player, *sprite_groups):
         super().__init__(*sprite_groups)
 
         self.image = image
@@ -282,6 +302,7 @@ class Enemy(pygame.sprite.Sprite):
         self.timer = 0
         self.last_hit_time = 0
         self.cooldown = False
+        self.player = player
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -322,6 +343,8 @@ class Enemy(pygame.sprite.Sprite):
         if self.route and not self.cooldown:
             if self.get_centre_coords() == (self.route[0][0] * 64 + 50 + 32, self.route[0][1] * 64 + 50 + 32):
                 self.route = self.route[1:]
+            elif self.get_pos_as_board() == self.route[-1]:
+                self.route = []
 
             if self.route != []:
                 direction_x, direction_y = 0, 0
@@ -333,17 +356,25 @@ class Enemy(pygame.sprite.Sprite):
                         abs(self.route[0][1] * 64 + 50 + 32 - self.get_centre_coords()[1])
 
                 self.set_direction(direction_x * self.VELOCITY, direction_y * self.VELOCITY)
+                self.set_hit_direction(direction_x, direction_y)
                 self.rect = self.rect.move(self.direction_x, self.direction_y)
-
-            elif self.route == []:
-                self.set_direction(0, 0)
-                self.cooldown = True
-                self.last_hit_time = pygame.time.get_ticks()
 
         if self.timer - self.last_hit_time > 1500:
             self.cooldown = False
 
+        if self.route == [] and not self.cooldown:
+            self.hit()
+
         self.timer = pygame.time.get_ticks()
+
+    def hit(self):
+        self.set_direction(0, 0)
+        self.cooldown = True
+        self.last_hit_time = pygame.time.get_ticks()
+
+        if abs(self.player.get_centre_coords()[0] - self.get_centre_coords()[0]) <= 64 and \
+                abs(self.player.get_centre_coords()[1] - self.get_centre_coords()[1]) <= 64:
+            self.player.take_damage()
 
     def point_in_rect(self, x, y):
         if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:

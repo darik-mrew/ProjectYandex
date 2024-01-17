@@ -1,3 +1,3 @@
-HP: 7
-DAMAGE: 4
-COINS: 5
+HP: 3
+DAMAGE: 1
+COINS: 0
