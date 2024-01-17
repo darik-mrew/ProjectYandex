@@ -246,12 +246,17 @@ def main(entrance_x, entrance_y, player_hp=None):
 
                 player_centre_coords = player.get_centre_coords()
                 player_hit_direction = player.get_hit_direction()
-                point_of_hit_coords = tuple(coord + 64 * hit_direction for coord, hit_direction in
-                                            zip(player_centre_coords, player_hit_direction))
+                point_of_hit_coords_1 = tuple(coord + 64 * hit_direction for coord, hit_direction in
+                                              zip(player_centre_coords, player_hit_direction))
+                point_of_hit_coords_2 = tuple(coord + 32 * hit_direction for coord, hit_direction in
+                                              zip(player_centre_coords, player_hit_direction))
+                point_of_hit_coords_3 = tuple(coord + 0 * hit_direction for coord, hit_direction in
+                                              zip(player_centre_coords, player_hit_direction))
 
                 if player.get_current_tool() == 'pick':
                     for tile in stones_and_ores.sprites():
-                        if tile.point_in_rect(*point_of_hit_coords):
+                        if tile.point_in_rect(*point_of_hit_coords_1) or tile.point_in_rect(*point_of_hit_coords_2) or\
+                                tile.point_in_rect(*point_of_hit_coords_3):
                             if tile.get_hp() == 1:
                                 AI_matrix[tile.get_pos_as_board()[1]][tile.get_pos_as_board()[0]] = 'i'
 
@@ -264,7 +269,8 @@ def main(entrance_x, entrance_y, player_hp=None):
 
                 elif player.get_current_tool() == 'axe':
                     for enemy in enemies_group.sprites():
-                        if enemy.point_in_rect(*point_of_hit_coords):
+                        if enemy.point_in_rect(*point_of_hit_coords_1) or enemy.point_in_rect(*point_of_hit_coords_2)\
+                                or enemy.point_in_rect(*point_of_hit_coords_3):
                             if enemy.get_hp() <= player.get_axe_damage() and enemy.get_mode() in modes:
                                 current_quantities[modes.index(enemy.get_mode())] += 1
                             enemy.stun_lock()
