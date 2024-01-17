@@ -1,7 +1,6 @@
 import pygame
 import sys
 import os
-import random
 from collections import deque
 
 
@@ -216,7 +215,7 @@ class Quest_as_interface(pygame.sprite.Sprite):
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, pos_x, pos_y, player_group, all_sprites_group, sprite_group_collisions, image=None):
+    def __init__(self, pos_x, pos_y, player_group, all_sprites_group, sprite_group_collisions, image=None, hp=None):
         super().__init__(player_group, all_sprites_group)
         if image:
             player_image = image
@@ -236,7 +235,11 @@ class Player(pygame.sprite.Sprite):
         with open('data/Characteristics.txt') as txt_file:
             data = [i.strip() for i in txt_file.readlines()]
         self.axe_damage = int(data[1].split()[1])
-        self.hp = int(data[0].split()[1])
+        if hp is None:
+            self.hp = int(data[0].split()[1])
+        else:
+            self.hp = hp
+        self.velocity = 2
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -247,14 +250,14 @@ class Player(pygame.sprite.Sprite):
         self.hit_direction_y = y
 
     def update(self):
-        self.rect = self.rect.move(self.direction_x, self.direction_y)
+        self.rect = self.rect.move(self.direction_x * self.velocity, self.direction_y * self.velocity)
         if pygame.sprite.spritecollideany(self, self.sprite_group_collisions):
-            self.rect = self.rect.move(-self.direction_x, -self.direction_y)
+            self.rect = self.rect.move(-self.direction_x * self.velocity, -self.direction_y * self.velocity)
+        self.set_direction(0, 0)
 
     def take_damage(self):
         if self.hp:
             self.hp -= 1
-            print(1)
 
         if self.hp == 0:
             self.kill()
@@ -270,6 +273,9 @@ class Player(pygame.sprite.Sprite):
 
     def get_current_tool(self):
         return self.current_tool
+
+    def get_axe_damage(self):
+        return self.axe_damage
 
     def get_hp(self):
         return self.hp
@@ -298,7 +304,7 @@ class Enemy(pygame.sprite.Sprite):
         self.route = []
         self.hp = hp
         self.mode = mode
-        self.VELOCITY = 2
+        self.VELOCITY = 1
         self.timer = 0
         self.last_hit_time = 0
         self.cooldown = False
@@ -326,11 +332,10 @@ class Enemy(pygame.sprite.Sprite):
         pos_y = (self.rect.y + self.rect.height // 2 - 50) // 64
         return pos_x, pos_y
 
-    def get_damage(self):
-        if self.hp:
-            self.hp -= 1
+    def take_damage(self, damage):
+        self.hp -= damage
 
-        if self.hp == 0:
+        if self.hp <= 0:
             self.kill()
 
     def get_mode(self):
@@ -359,7 +364,7 @@ class Enemy(pygame.sprite.Sprite):
                 self.set_hit_direction(direction_x, direction_y)
                 self.rect = self.rect.move(self.direction_x, self.direction_y)
 
-        if self.timer - self.last_hit_time > 1500:
+        if self.timer - self.last_hit_time > 1000:
             self.cooldown = False
 
         if self.route == [] and not self.cooldown:
@@ -368,13 +373,16 @@ class Enemy(pygame.sprite.Sprite):
         self.timer = pygame.time.get_ticks()
 
     def hit(self):
-        self.set_direction(0, 0)
-        self.cooldown = True
-        self.last_hit_time = pygame.time.get_ticks()
+        self.stun_lock()
 
         if abs(self.player.get_centre_coords()[0] - self.get_centre_coords()[0]) <= 64 and \
                 abs(self.player.get_centre_coords()[1] - self.get_centre_coords()[1]) <= 64:
             self.player.take_damage()
+
+    def stun_lock(self):
+        self.set_direction(0, 0)
+        self.cooldown = True
+        self.last_hit_time = pygame.time.get_ticks()
 
     def point_in_rect(self, x, y):
         if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
@@ -390,5 +398,3 @@ class Enemy(pygame.sprite.Sprite):
                     graph[(x, y)] = graph.get((x, y), []) + get_next_nodes_AI(x, y, level)
 
         self.route = bfs(self.get_pos_as_board(), player_coords, graph)
-
-

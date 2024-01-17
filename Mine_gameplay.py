@@ -181,15 +181,14 @@ manager = pygame_gui.UIManager((width, height))
 clock = pygame.time.Clock()
 # константы
 running = True
-VELOCITY = 3
 FPS = 60
 player_hit_cooldown = 700
-
+# словарь с ключевыми буквами объектов и их картинками
 loot_images_dict = {'s': (218, 218, 226), 'z': (133, 134, 5), 'w': (243, 23, 23), 'm': (238, 118, 32),
                     'g': (238, 200, 63), 'a': (65, 191, 240)}
 
 
-def main(entrance_x, entrance_y):
+def main(entrance_x, entrance_y, player_hp=None):
     global running
 
     # определение характеристик героя
@@ -208,13 +207,12 @@ def main(entrance_x, entrance_y):
     hearts_group = pygame.sprite.Group()
     # создание уровня
     level, out_coords = create_level(entrance_x, entrance_y)
-    #create_tiles(level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores)
     create_walls(sprite_group_collisions, all_sprites)
     create_hearts(all_sprites, hearts_group)
     create_quest_interface(all_sprites)
     player_x, player_y = get_player_start_coords(entrance_x, entrance_y)
     player = Player(player_x, player_y, player_group, all_sprites, sprite_group_collisions,
-                    load_image('main character.png', -1))
+                    load_image('main character.png', -1), hp=player_hp)
     create_tiles(player, level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores)
     interactive_zone_out = create_interactive_zone_out(out_coords[0], out_coords[1], player, all_sprites)
 
@@ -232,26 +230,18 @@ def main(entrance_x, entrance_y):
                 terminate()
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_w:
-                    player.set_direction(player.get_direction()[0], -VELOCITY)
-                    player.set_hit_direction(0, -1)
-                if event.key == pygame.K_d:
-                    player.set_direction(VELOCITY, player.get_direction()[1])
-                    player.set_hit_direction(1, 0)
-                if event.key == pygame.K_s:
-                    player.set_direction(player.get_direction()[0], VELOCITY)
-                    player.set_hit_direction(0, 1)
-                if event.key == pygame.K_a:
-                    player.set_direction(-VELOCITY, player.get_direction()[1])
-                    player.set_hit_direction(-1, 0)
                 if event.key == pygame.K_e:
                     if interactive_zone_out.player_in_zone():
                         entrance_x = (9 if out_coords[0] == 0 else (0 if out_coords[0] == 9 else out_coords[0]))
                         entrance_y = (4 if out_coords[1] == 0 else (0 if out_coords[1] == 4 else out_coords[1]))
                         write_quest_stats_in_file(modes, quantities, current_quantities)
-                        main(entrance_x, entrance_y)
-            if event.type == pygame.MOUSEBUTTONDOWN and pygame.time.get_ticks() - player_last_hit_time > \
-                    player_hit_cooldown:
+                        main(entrance_x, entrance_y, player.get_hp())
+
+            if event.type == pygame.MOUSEWHEEL:
+                player.change_current_tool()
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.type != pygame.MOUSEWHEEL and\
+                    pygame.time.get_ticks() - player_last_hit_time > player_hit_cooldown:
                 player_last_hit_time = pygame.time.get_ticks()
 
                 player_centre_coords = player.get_centre_coords()
@@ -272,20 +262,28 @@ def main(entrance_x, entrance_y):
                                     current_quantities[modes.index(tile.get_mode())] += 1
                             tile.take_damage()
 
-            if event.type == pygame.KEYUP:
-                if event.key == pygame.K_w:
-                    player.set_direction(player.get_direction()[0], 0)
-                if event.key == pygame.K_d:
-                    player.set_direction(0, player.get_direction()[1])
-                if event.key == pygame.K_s:
-                    player.set_direction(player.get_direction()[0], 0)
-                if event.key == pygame.K_a:
-                    player.set_direction(0, player.get_direction()[1])
-
-            if event.type == pygame.MOUSEWHEEL:
-                player.change_current_tool()
+                elif player.get_current_tool() == 'axe':
+                    for enemy in enemies_group.sprites():
+                        if enemy.point_in_rect(*point_of_hit_coords):
+                            if enemy.get_hp() <= player.get_axe_damage() and enemy.get_mode() in modes:
+                                current_quantities[modes.index(enemy.get_mode())] += 1
+                            enemy.stun_lock()
+                            enemy.take_damage(player.get_axe_damage())
 
             manager.process_events(event)
+
+        if pygame.key.get_pressed()[pygame.K_w]:
+            player.set_direction(player.get_direction()[0], -1)
+            player.set_hit_direction(0, -1)
+        if pygame.key.get_pressed()[pygame.K_d]:
+            player.set_direction(1, player.get_direction()[1])
+            player.set_hit_direction(1, 0)
+        if pygame.key.get_pressed()[pygame.K_s]:
+            player.set_direction(player.get_direction()[0], 1)
+            player.set_hit_direction(0, 1)
+        if pygame.key.get_pressed()[pygame.K_a]:
+            player.set_direction(-1, player.get_direction()[1])
+            player.set_hit_direction(-1, 0)
 
         if (player.get_centre_coords()[0] - 50) // 64 != player_x or (player.get_centre_coords()[1] - 50) // 64\
                 != player_y:
@@ -310,5 +308,6 @@ def main(entrance_x, entrance_y):
 
         pygame.display.flip()
         clock.tick(FPS)
+
 
 main(5, 0)

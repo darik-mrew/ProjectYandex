@@ -186,9 +186,8 @@ def cancel_interactive_window():
 def generate_quest():
     length = random.randrange(1, 3)
     items = random.sample(possible_loot, k=length)
-    quantities = [random.randrange(1, 9) if items[j] in possible_loot[3:] else random.randrange(1, 3) for j in
-                  range(length)]
-    reward = sum([(2 if items[i] in possible_loot[:3] else 1) * quantities[i] for i in range(len(items))])
+    quantities = [random.randrange(1, 9) if items[j] != 's' else random.randrange(1, 3) for j in range(length)]
+    reward = sum([(2 if items[i] == 's' else 1) * quantities[i] for i in range(len(items))])
 
     return [items, quantities, reward]
 
@@ -210,9 +209,8 @@ clock = pygame.time.Clock()
 running = True
 VELOCITY = 3
 FPS = 60
-possible_loot = ['s', 'z', 'w', 'm', 'g', 'a']
-loot_images_dict = {'s': (218, 218, 226), 'z': (133, 134, 5), 'w': (243, 23, 23),
-                    'm': (238, 118, 32), 'g': (238, 200, 63), 'a': (65, 191, 240)}
+possible_loot = ['s', 'm', 'g', 'a']
+loot_images_dict = {'s': (218, 218, 226), 'm': (238, 118, 32), 'g': (238, 200, 63), 'a': (65, 191, 240)}
 chosen_quest = None
 with open('data/Characteristics.txt') as txt_file:
     characteristics = {i.strip().split(': ')[0]: int(i.strip().split(': ')[1]) for i in txt_file.readlines()}
@@ -250,14 +248,6 @@ def main_hub():
                 running = False
                 terminate()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_w:
-                    player.set_direction(player.get_direction()[0], -VELOCITY)
-                if event.key == pygame.K_d:
-                    player.set_direction(VELOCITY, player.get_direction()[1])
-                if event.key == pygame.K_s:
-                    player.set_direction(player.get_direction()[0], VELOCITY)
-                if event.key == pygame.K_a:
-                    player.set_direction(-VELOCITY, player.get_direction()[1])
                 if event.key == pygame.K_e:
                     if interactive_zone_bird.player_in_zone():
                         player.set_direction(0, 0)
@@ -367,6 +357,19 @@ def main_hub():
                                 window_title='')
 
             manager.process_events(event)
+
+        if pygame.key.get_pressed()[pygame.K_w]:
+            player.set_direction(player.get_direction()[0], -1)
+            player.set_hit_direction(0, -1)
+        if pygame.key.get_pressed()[pygame.K_d]:
+            player.set_direction(1, player.get_direction()[1])
+            player.set_hit_direction(1, 0)
+        if pygame.key.get_pressed()[pygame.K_s]:
+            player.set_direction(player.get_direction()[0], 1)
+            player.set_hit_direction(0, 1)
+        if pygame.key.get_pressed()[pygame.K_a]:
+            player.set_direction(-1, player.get_direction()[1])
+            player.set_hit_direction(-1, 0)
 
         screen.fill((0, 0, 0))
 

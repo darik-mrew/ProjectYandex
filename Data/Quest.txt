@@ -1,3 +1,4 @@
-m 7 22
-reward 7
+g 3 0
+s 1 0
+reward 5
 completed false
