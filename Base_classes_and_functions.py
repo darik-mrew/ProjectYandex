@@ -1,3 +1,5 @@
+import glob
+
 import pygame
 import sys
 import os
@@ -381,9 +383,19 @@ class Enemy(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y, hp, mode, player, *sprite_groups):
         super().__init__(*sprite_groups)
 
-        surface = pygame.Surface([32, 32])
-        surface.fill((200, 200, 200))
-        self.image = surface
+        self.image_left = []
+        self.image_right = []
+        self.image_up = []
+        self.image_down = []
+        for img_path in sorted(glob.glob("data/images/skgo/skgo*.png")):
+            original_image = pygame.image.load(img_path)
+            self.image_left.append(original_image)
+            self.image_right.append(pygame.transform.flip(original_image, True, False))
+            self.image_up.append(original_image)
+            self.image_down.append(original_image)
+
+        self.image_index = 0
+        self.image = self.image_right[self.image_index]
 
         self.rect = self.image.get_rect()
         self.rect = self.rect.move(64 * pos_x + 50 + (64 // 2 - self.rect.width // 2), 64 * pos_y + 50 +
@@ -395,11 +407,14 @@ class Enemy(pygame.sprite.Sprite):
         self.route = []
         self.hp = hp
         self.mode = mode
-        self.VELOCITY = 1
+        self.velocity = 1
         self.timer = 0
         self.last_hit_time = 0
         self.cooldown = False
         self.player = player
+        self.anim_frame = 0
+        self.anim_tick = 0
+        self.anim_speed = 10
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -418,7 +433,7 @@ class Enemy(pygame.sprite.Sprite):
     def get_centre_coords(self):
         return self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2
 
-    def get_pos_as_board(self):   # отсчет с нуля
+    def get_pos_as_board(self):  # отсчет с нуля
         pos_x = (self.rect.x + self.rect.width // 2 - 50) // 64
         pos_y = (self.rect.y + self.rect.height // 2 - 50) // 64
         return pos_x, pos_y
@@ -446,12 +461,12 @@ class Enemy(pygame.sprite.Sprite):
                 direction_x, direction_y = 0, 0
                 if self.get_centre_coords()[0] != self.route[0][0] * 64 + 50 + 32:
                     direction_x = (self.route[0][0] * 64 + 50 + 32 - self.get_centre_coords()[0]) / \
-                        abs(self.route[0][0] * 64 + 50 + 32 - self.get_centre_coords()[0])
+                                  abs(self.route[0][0] * 64 + 50 + 32 - self.get_centre_coords()[0])
                 if self.get_centre_coords()[1] != self.route[0][1] * 64 + 50 + 32:
                     direction_y = (self.route[0][1] * 64 + 50 + 32 - self.get_centre_coords()[1]) / \
-                        abs(self.route[0][1] * 64 + 50 + 32 - self.get_centre_coords()[1])
+                                  abs(self.route[0][1] * 64 + 50 + 32 - self.get_centre_coords()[1])
 
-                self.set_direction(direction_x * self.VELOCITY, direction_y * self.VELOCITY)
+                self.set_direction(direction_x * self.velocity, direction_y * self.velocity)
                 self.set_hit_direction(direction_x, direction_y)
                 self.rect = self.rect.move(self.direction_x, self.direction_y)
 
@@ -463,6 +478,8 @@ class Enemy(pygame.sprite.Sprite):
             self.stun_lock()
 
         self.timer = pygame.time.get_ticks()
+
+        self.animate_movement()
 
     def hit(self):
         if abs(self.player.get_centre_coords()[0] - self.get_centre_coords()[0]) <= 64 and \
@@ -478,6 +495,29 @@ class Enemy(pygame.sprite.Sprite):
         if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
             return True
         return False
+
+    def animate_movement(self):
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            if self.direction_x < 0:
+                self.image_index += 1
+                self.image_index = int(self.image_index)
+                if self.image_index >= len(self.image_right):
+                    self.image_index = 0
+                self.image = self.image_right[self.image_index]
+            elif self.direction_x > 0:
+                self.image_index += 1
+                self.image_index = int(self.image_index)
+                if self.image_index >= len(self.image_left):
+                    self.image_index = 0
+                self.image = self.image_left[self.image_index]
+            elif self.direction_y > 0:
+                self.image_index += 1
+                self.image_index = int(self.image_index)
+                if self.image_index >= len(self.image_down):
+                    self.image_index = 0
+                self.image = self.image_down[self.image_index]
 
     def determine_the_route(self, level, player_coords):
         graph = {}
