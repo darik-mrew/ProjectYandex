@@ -54,7 +54,7 @@ def bfs(start, goal, graph):
 
 
 def load_image(name, colorkey=None):
-    fullname = os.path.join('data', name)
+    fullname = os.path.join('data/Images', name)
     if not os.path.isfile(fullname):
         print(f"Файл с изображением '{fullname}' не найден")
         sys.exit()
@@ -111,17 +111,17 @@ class Tile(pygame.sprite.Sprite):
     def get_hp(self):
         return self.hp
 
-    def get_pos_as_board(self):   # отсчет с нуля
+    def get_pos_as_board(self):
         pos_x = (self.rect.x - 50) // 64
         pos_y = (self.rect.y - 50) // 64
         return pos_x, pos_y
 
 
 class Wall(pygame.sprite.Sprite):
-    def __init__(self, start_pos, width, height, sprite_group, all_sprites_group):
+    def __init__(self, start_pos, width, height, color, sprite_group, all_sprites_group):
         super().__init__(sprite_group, all_sprites_group)
         self.image = pygame.Surface((width, height))
-        self.image.fill((255, 0, 0))
+        self.image.fill(color)
         self.rect = pygame.Rect(start_pos[0], start_pos[1], width, height)
 
 
@@ -212,7 +212,7 @@ class Quest_as_interface(pygame.sprite.Sprite):
             text = font.render(f'/{quantity}', True, (100, 255, 100))
             self.image.blit(text, (x + 25, 10))
 
-            self.image.blit(image, (x + 60, 5))
+            self.image.blit(image, (x + 60, 0))
 
 
 class Player(pygame.sprite.Sprite):
@@ -291,10 +291,13 @@ class Player(pygame.sprite.Sprite):
 
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, pos_x, pos_y, hp, mode, image, player, *sprite_groups):
+    def __init__(self, pos_x, pos_y, hp, mode, player, *sprite_groups):
         super().__init__(*sprite_groups)
 
-        self.image = image
+        surface = pygame.Surface([32, 32])
+        surface.fill((200, 200, 200))
+        self.image = surface
+
         self.rect = self.image.get_rect()
         self.rect = self.rect.move(64 * pos_x + 50 + (64 // 2 - self.rect.width // 2), 64 * pos_y + 50 +
                                    (64 // 2 - self.rect.height // 2))
@@ -345,7 +348,7 @@ class Enemy(pygame.sprite.Sprite):
     def get_hp(self):
         return self.hp
 
-    def update(self):   # прописать врагам возможность бить
+    def update(self):
         if self.route and not self.cooldown:
             if self.get_centre_coords() == (self.route[0][0] * 64 + 50 + 32, self.route[0][1] * 64 + 50 + 32):
                 self.route = self.route[1:]
@@ -365,17 +368,16 @@ class Enemy(pygame.sprite.Sprite):
                 self.set_hit_direction(direction_x, direction_y)
                 self.rect = self.rect.move(self.direction_x, self.direction_y)
 
-        if self.timer - self.last_hit_time > 1000:
+        if self.timer - self.last_hit_time > 1000 and self.cooldown:
             self.cooldown = False
+            self.hit()
 
         if self.route == [] and not self.cooldown:
-            self.hit()
+            self.stun_lock()
 
         self.timer = pygame.time.get_ticks()
 
     def hit(self):
-        self.stun_lock()
-
         if abs(self.player.get_centre_coords()[0] - self.get_centre_coords()[0]) <= 64 and \
                 abs(self.player.get_centre_coords()[1] - self.get_centre_coords()[1]) <= 64:
             self.player.take_damage()

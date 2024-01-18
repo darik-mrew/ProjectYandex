@@ -1,6 +1,6 @@
 import copy
 
-import pygame
+from pygame.transform import scale
 import pygame_gui
 from Base_classes_and_functions import *
 
@@ -88,10 +88,9 @@ def create_matrix_to_AI(level):
     return level
 
 
-def create_hearts(all_sprites, heart_group):
+def create_heart(all_sprites, heart_group):
     heart = pygame.sprite.Sprite(all_sprites, heart_group)
-    image = pygame.Surface([40, 40])
-    image.fill((255, 0, 0))
+    image = scale(load_image('heart.png'), (40, 40))
     heart.image = image
     heart.rect = image.get_rect().move(50, 375)
 
@@ -105,12 +104,11 @@ def draw_quantity_of_hp_points(hp):
 
 
 def create_quest_interface(all_sprites):   # # #
+    loot_images_dict = {'s': scale(load_image('skeleton.png'), (40, 40)),
+                        'm': scale(load_image('copper.png'), (40, 40)), 'g': scale(load_image('gold.png'), (40, 40)),
+                        'a': scale(load_image('diamond.png'), (40, 40))}
     modes, quantities = get_quest()[:-1]
-    images = []
-    for mode in modes:
-        image = pygame.Surface([40, 40])   #
-        image.fill(loot_images_dict[mode])   #
-        images.append(image)   #
+    images = [loot_images_dict[mode] for mode in modes]
     Quest_as_interface(images, quantities, (310, 375), all_sprites)
 
 
@@ -123,47 +121,41 @@ def draw_necessary_items_current_quantities(quantities):
 
 
 def create_tiles(player, level, all_sprites, sprite_group_collisions, enemies_group, stones_and_ores):
-    cod_to_image = {'s': ((218, 218, 226), 5), 'm': ((238, 118, 32), 1), 'g': ((238, 200, 63), 2),
-                    'a': ((65, 191, 240), 3), 'i': ((0, 0, 0), None), 'e': ((0, 0, 255), None),
-                    'o': ((0, 255, 0), None), 'r': ((222, 218, 218), 1)}
+    cod_to_image = {'s': (None, 5), 'm': (load_image('copperblock.png'), 1),
+                    'g': (load_image('goldblock.png'), 2), 'a': (load_image('diamblock.png'), 3),
+                    'i': (load_image('emptyspace.png'), None), 'e': (load_image('door.png'), None),
+                    'o': (load_image('door.png'), None),
+                    'r': ([load_image('block3.png'), load_image('block2.png'), load_image('block1.png')], 1)}
 
     for pos_y in range(len(level)):
         for pos_x in range(len(level[pos_y])):
             sprite_groups = [all_sprites]
             if level[pos_y][pos_x] == 's':
-                color = cod_to_image['i'][0]
-                image = pygame.Surface([64, 64])
-                image.fill(color)
+                image = cod_to_image['i'][0]
                 Tile(pos_x, pos_y, image, sprite_groups)
 
                 sprite_groups.append(enemies_group)
-                surface = pygame.Surface([32, 32])
-                surface.fill(cod_to_image[level[pos_y][pos_x]][0])
                 hp = cod_to_image[level[pos_y][pos_x]][1]
-                Enemy(pos_x, pos_y, hp, level[pos_y][pos_x], surface, player, all_sprites, enemies_group)
+                Enemy(pos_x, pos_y, hp, level[pos_y][pos_x], player, all_sprites, enemies_group)
             else:
                 if level[pos_y][pos_x] != 'i':
                     sprite_groups.extend([sprite_group_collisions, stones_and_ores])
 
                 if level[pos_y][pos_x] == 'r':
                     hp = random.randint(1, 3)
-                    color = cod_to_image[level[pos_y][pos_x]][0]
-                    color = (color[0] - 70 * (hp - 1), color[1] - 70 * (hp - 1), color[2] - 70 * (hp - 1))
+                    image = cod_to_image[level[pos_y][pos_x]][0][hp - 1]
                 else:
                     hp = cod_to_image[level[pos_y][pos_x]][1]
-                    color = cod_to_image[level[pos_y][pos_x]][0]
-
-                image = pygame.Surface([64, 64])
-                image.fill(color)
+                    image = cod_to_image[level[pos_y][pos_x]][0]
 
                 Tile(pos_x, pos_y, image, sprite_groups, hp=hp, mode=level[pos_y][pos_x])
 
 
 def create_walls(sprite_group_collisions, all_sprites):
-    Wall((48, 50), 2, 320, sprite_group_collisions, all_sprites)
-    Wall((690, 50), 2, 320, sprite_group_collisions, all_sprites)
-    Wall((50, 48), 640, 2, sprite_group_collisions, all_sprites)
-    Wall((50, 370), 640, 2, sprite_group_collisions, all_sprites)
+    Wall((48, 50), 2, 320, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((690, 50), 2, 320, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((50, 48), 640, 2, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((50, 370), 640, 2, (150, 150, 150), sprite_group_collisions, all_sprites)
 
 
 def create_interactive_zone_out(out_x, out_y, player, sprite_group):
@@ -183,9 +175,6 @@ clock = pygame.time.Clock()
 running = True
 FPS = 60
 player_hit_cooldown = 700
-# словарь с ключевыми буквами объектов и их картинками
-loot_images_dict = {'s': (218, 218, 226), 'z': (133, 134, 5), 'w': (243, 23, 23), 'm': (238, 118, 32),
-                    'g': (238, 200, 63), 'a': (65, 191, 240)}
 
 
 def main(entrance_x, entrance_y, player_hp=None):
@@ -208,7 +197,7 @@ def main(entrance_x, entrance_y, player_hp=None):
     # создание уровня
     level, out_coords = create_level(entrance_x, entrance_y)
     create_walls(sprite_group_collisions, all_sprites)
-    create_hearts(all_sprites, hearts_group)
+    create_heart(all_sprites, hearts_group)
     create_quest_interface(all_sprites)
     player_x, player_y = get_player_start_coords(entrance_x, entrance_y)
     player = Player(player_x, player_y, player_group, all_sprites, sprite_group_collisions,
@@ -259,6 +248,7 @@ def main(entrance_x, entrance_y, player_hp=None):
                                 tile.point_in_rect(*point_of_hit_coords_3):
                             if tile.get_hp() == 1:
                                 AI_matrix[tile.get_pos_as_board()[1]][tile.get_pos_as_board()[0]] = 'i'
+                                Tile(*tile.get_pos_as_board(), load_image('emptyspace.png'), all_sprites)
 
                                 for enemy in enemies_group.sprites():
                                     enemy.determine_the_route(AI_matrix, (player_x, player_y))

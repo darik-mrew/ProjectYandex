@@ -3,20 +3,20 @@ from Base_classes_and_functions import *
 
 
 def create_walls():
-    Wall((50, 50), 2, 320, sprite_group_collisions, all_sprites)
-    Wall((689, 50), 2, 320, sprite_group_collisions, all_sprites)
-    Wall((50, 50), 640, 2, sprite_group_collisions, all_sprites)
-    Wall((50, 369), 640, 2, sprite_group_collisions, all_sprites)
-    Wall((4 * 64 + 49, 50), 2, 3 * 64, sprite_group_collisions, all_sprites)
-    Wall((50, 3 * 64 + 49), 64, 2, sprite_group_collisions, all_sprites)
-    Wall((64 * 2 + 49, 64 * 3 + 49), 2 * 64, 2, sprite_group_collisions, all_sprites)
+    Wall((48, 50), 2, 320, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((690, 50), 2, 320, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((50, 48), 640, 2, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((50, 370), 640, 2, (150, 150, 150), sprite_group_collisions, all_sprites)
+    Wall((4 * 64 + 48, 50), 3, 3 * 64, (0, 0, 0), sprite_group_collisions, all_sprites)
+    Wall((50, 3 * 64 + 46), 64, 4, (0, 0, 0), sprite_group_collisions, all_sprites)
+    Wall((64 * 2 + 49, 64 * 3 + 46), 2 * 64, 4, (0, 0, 0), sprite_group_collisions, all_sprites)
 
 
 def create_roof(sprite_group):
-    roof_image = pygame.image.load('data/roof.png').convert()
+    roof_image = load_image('roof.png')
     roof = pygame.sprite.Sprite(sprite_group)
     roof.image = roof_image
-    roof.rect = roof.image.get_rect().move(49, 49)
+    roof.rect = roof.image.get_rect().move(55, 54)
     return roof
 
 
@@ -26,21 +26,21 @@ def create_tiles():
         for pos_x in range(len(level[pos_y])):
             if level[pos_y][pos_x] == '.':
                 surface = pygame.Surface([64, 64])
-                rect = pygame.Rect(0, 0, 64, 64)
-                pygame.draw.rect(surface, pygame.Color('white'), rect, 1)
                 Tile(pos_x, pos_y, surface, all_sprites)
 
             else:
                 surface = pygame.Surface([64, 64])
-                surface.fill((255, 255, 255))
                 Tile(pos_x, pos_y, surface, sprite_group_collisions, all_sprites)
+    hub_sprite = pygame.sprite.Sprite(all_sprites)
+    hub_sprite.image = load_image('HUBPIC.png')
+    hub_sprite.rect = hub_sprite.image.get_rect().move(50, 50)
     return level
 
 
 def create_interactive_zones():
     global interactive_zone_bed, interactive_zone_bird, interactive_zone_mine
     interactive_zone_bed = Interactive_Zone((50 + 64, 50, 64 * 3, 64 * 2), player, all_sprites)
-    interactive_zone_bird = Interactive_Zone((50 + 64 * 7, 50 + 64 * 2, 64 * 3, 64 * 3), player, all_sprites)
+    interactive_zone_bird = Interactive_Zone((50 + 64 * 7 + 32, 50 + 64 * 2 + 32, 64 * 2, 64 * 2), player, all_sprites)
     interactive_zone_mine = Interactive_Zone((50 + 64 * 5, 50, 64 * 2, 64 * 2), player, all_sprites)
 
     return Interactive_Zones_container(interactive_zone_bed, interactive_zone_bird, interactive_zone_mine)
@@ -77,9 +77,7 @@ def create_quest_window():
     quests = [generate_quest(), generate_quest(), generate_quest()]
 
     for y, quest in zip(range(20, 290, 90), quests):    # доработать подгрузку спрайтов
-        images = [pygame.Surface([64, 64]) for _ in range(len(quest[0]))]   #
-        for i in range(len(images)):   #
-            images[i].fill(loot_images_dict[quest[0][i]])   #
+        images = [loot_images_dict[i] for i in quest[0]]
 
         Quest_as_window(images, quest[1], quest[2], (width // 2 - 440 // 2 + 10, height * 0.1 + y),
                         interactive_windows_group)
@@ -115,7 +113,8 @@ def create_shop_window():
     pygame.draw.rect(window.image, (0, 255, 0), (19, 19, 65, 65), 2)
     pygame.draw.rect(window.image, (0, 255, 0), (19, 103, 65, 65), 2)
 
-    # реализовать отрисовку изображений в квадратиках
+    window.image.blit(load_image('armor.png'), (20, 19))
+    window.image.blit(load_image('axe.png'), (20, 100))
 
     if characteristics['DAMAGE'] == 4:
         first_button = None
@@ -167,7 +166,7 @@ def create_bird_dialog_window():
 
 
 def cancel_interactive_window():
-    global first_button, second_button, third_button, cur_action, pause
+    global first_button, second_button, third_button, cur_action, conformation_window
 
     interactive_windows_group.empty()
     cur_action = ''
@@ -177,10 +176,11 @@ def cancel_interactive_window():
         second_button.kill()
     if third_button:
         third_button.kill()
+    if conformation_window:
+        conformation_window.kill()
     first_button = None
     second_button = None
     third_button = None
-    pause = False
 
 
 def generate_quest():
@@ -210,7 +210,8 @@ running = True
 VELOCITY = 3
 FPS = 60
 possible_loot = ['s', 'm', 'g', 'a']
-loot_images_dict = {'s': (218, 218, 226), 'm': (238, 118, 32), 'g': (238, 200, 63), 'a': (65, 191, 240)}
+loot_images_dict = {'s': load_image('skeleton.png'), 'm': load_image('copper.png'), 'g': load_image('gold.png'),
+                    'a': load_image('diamond.png')}
 chosen_quest = None
 with open('data/Characteristics.txt') as txt_file:
     characteristics = {i.strip().split(': ')[0]: int(i.strip().split(': ')[1]) for i in txt_file.readlines()}
@@ -230,8 +231,8 @@ sprite_group_collisions = pygame.sprite.Group()
 roof_group = pygame.sprite.Group()
 interactive_windows_group = pygame.sprite.Group()
 # создание уровня
-level = create_tiles()
 create_walls()
+level = create_tiles()
 create_roof(roof_group)
 player = Player(1, 1, player_group, all_sprites, sprite_group_collisions, load_image('main character.png', -1))
 all_interactive_zones = create_interactive_zones()
@@ -239,6 +240,13 @@ all_interactive_zones = create_interactive_zones()
 
 def main_hub():
     global running, cur_action, first_button, second_button, third_button, chosen_quest
+
+
+
+
+
+
+
 
     time_delta = clock.tick(FPS) / 1000.0
 
@@ -252,18 +260,21 @@ def main_hub():
                     if interactive_zone_bird.player_in_zone():
                         player.set_direction(0, 0)
 
+                        cancel_interactive_window()
                         cur_action = 'bird_interact'
                         create_bird_dialog_window()
 
                     if interactive_zone_bed.player_in_zone():
                         player.set_direction(0, 0)
 
+                        cancel_interactive_window()
                         cur_action = 'bed_interact'
                         create_conformation_window()
 
                     if interactive_zone_mine.player_in_zone():
                         player.set_direction(0, 0)
 
+                        cancel_interactive_window()
                         cur_action = 'mine_interact'
                         create_conformation_window()
                 if event.key == pygame.K_ESCAPE:
