@@ -221,7 +221,7 @@ class Player(pygame.sprite.Sprite):
         if image:
             player_image = image
         else:
-            player_image = pygame.Surface([64, 64])
+            player_image = pygame.surface([64, 64])
             player_image.fill((0, 0, 0))
 
         self.image = player_image
@@ -233,7 +233,7 @@ class Player(pygame.sprite.Sprite):
         self.current_tool = 'pick'
         self.hit_direction_x = 0
         self.hit_direction_y = 0
-        with open('data/Characteristics.txt') as txt_file:
+        with open('data/characteristics.txt') as txt_file:
             data = [i.strip() for i in txt_file.readlines()]
         self.axe_damage = int(data[1].split()[1])
         if hp is None:
@@ -241,6 +241,38 @@ class Player(pygame.sprite.Sprite):
         else:
             self.hp = hp
         self.velocity = 2
+
+        self.anim_images = []
+        for i in range(1, 4):
+            image = pygame.image.load(
+                f"data/images/dwfw/dwfw{i}.png").convert_alpha()
+            self.anim_images.append(image)
+
+        self.anim_left_images = []
+        for i in range(1, 4):
+            image = pygame.image.load(
+                f"data/images/dwrightleft/dwrightleft{i}.png").convert_alpha()
+            self.anim_left_images.append(image)
+
+        self.anim_right_images = []
+        for i in range(1, 4):
+            image = pygame.image.load(
+                f"data/images/dwrightleft/dwrightleft{i}.png").convert_alpha()
+            image = pygame.transform.flip(image, True, False)
+            self.anim_right_images.append(image)
+
+        self.anim_back_images = []
+        for i in range(1, 4):
+            image = pygame.image.load(
+                f"data/images/dwback/dwback{i}.png").convert_alpha()
+            self.anim_back_images.append(image)
+
+        self.anim_idle_image = pygame.image.load(
+            "data/images/dwstay/defdw_pickaxe.png").convert_alpha()
+
+        self.anim_frame = 0
+        self.anim_tick = 0
+        self.anim_speed = 10
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -251,10 +283,64 @@ class Player(pygame.sprite.Sprite):
         self.hit_direction_y = y
 
     def update(self):
-        self.rect = self.rect.move(self.direction_x * self.velocity, self.direction_y * self.velocity)
+        self.rect = self.rect.move(
+            self.direction_x * self.velocity, self.direction_y * self.velocity)
         if pygame.sprite.spritecollideany(self, self.sprite_group_collisions):
-            self.rect = self.rect.move(-self.direction_x * self.velocity, -self.direction_y * self.velocity)
-        self.set_direction(0, 0)
+            self.rect = self.rect.move(
+                -self.direction_x * self.velocity, -self.direction_y * self.velocity)
+        if self.direction_x == 0 and self.direction_y == 0:
+            self.animate_idle()
+        elif self.direction_x > 0:
+            self.animate_right_movement()
+        elif self.direction_x < 0:
+            self.animate_left_movement()
+        elif self.direction_y < 0:
+            self.animate_back_movement()
+        else:
+            self.animate_movement()
+
+    def animate_movement(self):
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(self.anim_images):
+                self.anim_frame = 0
+
+        self.image = self.anim_images[self.anim_frame]
+
+    def animate_left_movement(self):
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(self.anim_left_images):
+                self.anim_frame = 0
+
+        self.image = self.anim_left_images[self.anim_frame]
+
+    def animate_right_movement(self):
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(self.anim_right_images):
+                self.anim_frame = 0
+
+        self.image = self.anim_right_images[self.anim_frame]
+
+    def animate_idle(self):
+        self.image = self.anim_idle_image
+
+    def animate_back_movement(self):
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(self.anim_back_images):
+                self.anim_frame = 0
+
+        self.image = self.anim_back_images[self.anim_frame]
 
     def take_damage(self):
         if self.hp:
@@ -264,7 +350,7 @@ class Player(pygame.sprite.Sprite):
             self.kill()
 
     def get_direction(self):
-        return (self.direction_x, self.direction_y)
+        return self.direction_x, self.direction_y
 
     def get_hit_direction(self):
         return self.hit_direction_x, self.hit_direction_y
@@ -282,12 +368,26 @@ class Player(pygame.sprite.Sprite):
         return self.hp
 
     def change_current_tool(self):
-        self.current_tool = ('axe' if self.current_tool == 'pick' else 'pick')
+        self.current_tool = 'axe' if self.current_tool == 'pick' else 'pick'
 
     def point_in_rect(self, x, y):
         if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
             return True
         return False
+
+    def handle_events(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_s:
+                self.animate_movement()
+            elif event.key == pygame.K_a:
+                self.animate_left_movement()
+            elif event.key == pygame.K_d:
+                self.animate_right_movement()
+            elif event.key == pygame.K_w:
+                self.animate_back_movement()
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_s:
+                self.animate_idle()
 
 
 class Enemy(pygame.sprite.Sprite):
