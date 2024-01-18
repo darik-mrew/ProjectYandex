@@ -298,6 +298,7 @@ class Player(pygame.sprite.Sprite):
             self.animate_back_movement()
         else:
             self.animate_movement()
+        self.set_direction(0, 0)
 
     def animate_movement(self):
         self.anim_tick += 1
@@ -374,20 +375,6 @@ class Player(pygame.sprite.Sprite):
         if self.rect.x < x < self.rect.x + self.rect.width and self.rect.y < y < self.rect.y + self.rect.height:
             return True
         return False
-
-    def handle_events(self, event):
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_s:
-                self.animate_movement()
-            elif event.key == pygame.K_a:
-                self.animate_left_movement()
-            elif event.key == pygame.K_d:
-                self.animate_right_movement()
-            elif event.key == pygame.K_w:
-                self.animate_back_movement()
-        elif event.type == pygame.KEYUP:
-            if event.key == pygame.K_s:
-                self.animate_idle()
 
 
 class Enemy(pygame.sprite.Sprite):
