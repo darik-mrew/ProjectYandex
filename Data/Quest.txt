@@ -1,0 +1,4 @@
+g 5 0
+a 6 0
+reward 11
+completed false

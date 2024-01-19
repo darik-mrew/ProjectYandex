@@ -1,5 +1,6 @@
 import pygame_gui
 from Base_classes_and_functions import *
+from Mine_gameplay import main_mine
 
 
 def create_walls():
@@ -8,8 +9,8 @@ def create_walls():
     Wall((50, 48), 640, 2, (150, 150, 150), sprite_group_collisions, all_sprites)
     Wall((50, 370), 640, 2, (150, 150, 150), sprite_group_collisions, all_sprites)
     Wall((4 * 64 + 48, 50), 3, 3 * 64, (0, 0, 0), sprite_group_collisions, all_sprites)
-    Wall((50, 3 * 64 + 46), 64, 4, (0, 0, 0), sprite_group_collisions, all_sprites)
-    Wall((64 * 2 + 49, 64 * 3 + 46), 2 * 64, 4, (0, 0, 0), sprite_group_collisions, all_sprites)
+    Wall((50, 3 * 64 + 46), 55, 4, (0, 0, 0), sprite_group_collisions, all_sprites)
+    Wall((64 * 2 + 65, 64 * 3 + 46), 2 * 64 - 20, 4, (0, 0, 0), sprite_group_collisions, all_sprites)
 
 
 def create_roof(sprite_group):
@@ -57,11 +58,11 @@ def create_conformation_window():
         action_long_desc = ''
 
     conformation_window = pygame_gui.windows.UIConfirmationDialog(
-        rect=pygame.Rect(50 + 64 * 3, 50 + 64 * 1.5, 260, 200),
+        rect=pygame.Rect(50 + 64 * 3, 50 + 64 * 1.5, 261, 200),
         manager=manager,
         window_title='',
         action_long_desc=action_long_desc,
-        action_short_name='Yes')
+        action_short_name='Ok')
 
 
 def create_quest_window():
@@ -76,7 +77,7 @@ def create_quest_window():
 
     quests = [generate_quest(), generate_quest(), generate_quest()]
 
-    for y, quest in zip(range(20, 290, 90), quests):    # доработать подгрузку спрайтов
+    for y, quest in zip(range(20, 290, 90), quests):
         images = [loot_images_dict[i] for i in quest[0]]
 
         Quest_as_window(images, quest[1], quest[2], (width // 2 - 440 // 2 + 10, height * 0.1 + y),
@@ -212,6 +213,7 @@ FPS = 60
 possible_loot = ['s', 'm', 'g', 'a']
 loot_images_dict = {'s': load_image('skeleton.png'), 'm': load_image('copper.png'), 'g': load_image('gold.png'),
                     'a': load_image('diamond.png')}
+
 chosen_quest = None
 with open('data/Characteristics.txt') as txt_file:
     characteristics = {i.strip().split(': ')[0]: int(i.strip().split(': ')[1]) for i in txt_file.readlines()}
@@ -239,14 +241,7 @@ all_interactive_zones = create_interactive_zones()
 
 
 def main_hub():
-    global running, cur_action, first_button, second_button, third_button, chosen_quest
-
-
-
-
-
-
-
+    global running, cur_action, first_button, second_button, third_button, chosen_quest, conformation_window
 
     time_delta = clock.tick(FPS) / 1000.0
 
@@ -257,7 +252,29 @@ def main_hub():
                 terminate()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_e:
-                    if interactive_zone_bird.player_in_zone():
+                    with open('data/Quest.txt') as txt_file:
+                        data = [i.strip() for i in txt_file.readlines()]
+                        if len(data) != 0:
+                            reward = int(data[-2].split()[1])
+                            completed = (True if data[-1].split()[1] == 'true' else False)
+                        else:
+                            reward = 0
+                            completed = False
+
+                    if interactive_zone_bird.player_in_zone() and completed:
+                        characteristics['COINS'] += reward
+                        pygame_gui.windows.UIConfirmationDialog(
+                            rect=pygame.Rect(50 + 64 * 3, 50 + 64 * 1.5, 260, 200),
+                            manager=manager,
+                            window_title='',
+                            action_long_desc=f'You earned {reward} coins!',
+                            action_short_name='Ok')
+                        cur_action = ''
+                        write_characteristics_in_txt()
+                        with open('data/Quest.txt', 'w') as txt_file:
+                            txt_file.write(f'reward {reward}\n')
+                            txt_file.write('completed false')
+                    elif interactive_zone_bird.player_in_zone():
                         player.set_direction(0, 0)
 
                         cancel_interactive_window()
@@ -295,12 +312,25 @@ def main_hub():
                     if cur_action == 'bed_interact':
                         terminate()
                     if cur_action == 'mine_interact':
-                        with open('data/Quest.txt', 'w') as txt_file:
-                            for item, quantity in zip(chosen_quest[0], chosen_quest[1]):
-                                txt_file.write(item + ' ' + str(quantity) + ' 0\n')
-                            txt_file.write('reward ' + str(chosen_quest[2]) + '\n')
-                            txt_file.write('completed false')
-                        terminate()    # сделать переход в шахту
+                        if chosen_quest is not None:
+                            with open('data/Quest.txt', 'w') as txt_file:
+                                for item, quantity in zip(chosen_quest[0], chosen_quest[1]):
+                                    txt_file.write(item + ' ' + str(quantity) + ' 0\n')
+                                txt_file.write('reward ' + str(chosen_quest[2]) + '\n')
+                                txt_file.write('completed false')
+                            main_mine(5, 0)
+                            chosen_quest = None
+                            player.rect.x = 100
+                            player.rect.y = 100
+                        else:
+                            conformation_window = pygame_gui.windows.UIConfirmationDialog(
+                                rect=pygame.Rect(50 + 64 * 3, 50 + 64 * 1.5, 260, 200),
+                                manager=manager,
+                                window_title='',
+                                action_long_desc="You haven't chosen a quest yet!",
+                                action_short_name='Ok')
+                            cur_action = ''
+
                 if event.user_type == pygame_gui.UI_BUTTON_PRESSED:
                     if cur_action == 'bird_interact' and event.ui_element == first_button:
                         cancel_interactive_window()
@@ -315,9 +345,10 @@ def main_hub():
                             cancel_interactive_window()
                             cur_action = ''
                             pygame_gui.windows.UIMessageWindow(
-                                rect=pygame.Rect(width // 2 - 200 // 2, height * 0.1, 200, 100),
+                                rect=pygame.Rect(width // 2 - 200 // 2, height * 0.1, 260, 200),
                                 html_message='You have already accepted the task!',
-                                window_title='')
+                                window_title='',
+                                manager=manager)
                     if cur_action == 'bird_interact' and event.ui_element == third_button:
                         cancel_interactive_window()
                         cur_action = ''
@@ -362,10 +393,11 @@ def main_hub():
                                 event.ui_element.set_text(
                                     f'Upgrade: {dict_in_use[characteristics[dict_parameter]]} coins')
                         else:
-                            pygame_gui.windows.UIMessageWindow(
+                            conformation_window = pygame_gui.windows.UIMessageWindow(
                                 rect=pygame.Rect(width // 2 - 260 // 2, height // 2 - 200 // 2, 260, 200),
                                 html_message="You don't have enough coins!",
-                                window_title='')
+                                window_title='',
+                                manager=manager)
 
             manager.process_events(event)
 

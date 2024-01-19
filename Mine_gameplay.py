@@ -1,19 +1,7 @@
-import copy
-
+import pygame
 from pygame.transform import scale
 import pygame_gui
 from Base_classes_and_functions import *
-
-
-def get_neighbours(x, y, matrix):
-    neighbours = []
-    for i in range(y - 1, y + 2):
-        for j in range(x - 1, x + 2):
-            if i == len(matrix) or i < 0 or j == len(matrix[0]) or j < 0 or (i == y and j == x):
-                pass
-            else:
-                neighbours.append((j, i, matrix[i][j]))
-    return neighbours
 
 
 def get_player_start_coords(entrance_x, entrance_y):
@@ -44,48 +32,15 @@ def write_quest_stats_in_file(modes, quantities, current_quantities):
         txt_file.write(completed_status_string)
 
 
-def create_level(entrance_x, entrance_y):
-    objects = {'r': 0.6, 'm': 0.04, 'g': 0.04, 'a': 0.02, 'i': 0.3}
-    level = [random.choices(list(objects.keys()), weights=list(objects.values()), k=10) for _ in range(5)]
+def create_conformation_window(action_long_desc):
+    global conformation_window
 
-    for y in range(len(level)):
-        for x in range(len(level[0])):
-            if level[y][x] in ['m', 'g', 'a']:
-                for neighbour in get_neighbours(x, y, level):
-                    if neighbour[2] != level[y][x] and random.random() <= 0.1:
-                        level[neighbour[1]][neighbour[0]] = copy.copy(level[y][x]) + '*'
-
-    for y in range(len(level)):
-        for x in range(len(level[0])):
-            if '*' in level[y][x]:
-                level[y][x] = level[y][x][:-1]
-
-    for y in range(len(level)):
-        for x in range(len(level[0])):
-            if level[y][x] == 'i' and random.random() <= 0.1:
-                level[y][x] = 's'
-
-    level[entrance_y][entrance_x] = 'e'
-    for neighbour in get_neighbours(entrance_x, entrance_y, level):
-        level[neighbour[1]][neighbour[0]] = 'i'
-
-    out_x, out_y = entrance_x, entrance_y
-    while out_x == entrance_x and out_y == entrance_y:
-        out_x = random.choice([0, 5, 9])
-        out_y = random.choice([0, 4]) if out_x == 5 else 2
-    level[out_y][out_x] = 'o'
-
-    return level, (out_x, out_y)
-
-
-def create_matrix_to_AI(level):
-    for y in range(len(level)):
-        for x in range(len(level[0])):
-            if level[y][x] in ['s', 'w', 'z', 'p']:
-                level[y][x] = 'i'
-            if level[y][x] != 'i':
-                level[y][x] = 'b'
-    return level
+    conformation_window = pygame_gui.windows.UIConfirmationDialog(
+        rect=pygame.Rect(50 + 64 * 3, 50 + 64 * 1.5, 260, 200),
+        manager=manager,
+        window_title='',
+        action_long_desc=action_long_desc,
+        action_short_name='Yes')
 
 
 def create_heart(all_sprites, heart_group):
@@ -165,6 +120,15 @@ def create_interactive_zone_out(out_x, out_y, player, sprite_group):
     return interactive_zone_entrance
 
 
+def create_died_screensaver():
+    died_screensaver = pygame.sprite.Sprite(died_screensaver_group)
+    died_screensaver.image = pygame.Surface([width, height])
+    died_screensaver.rect = pygame.Rect(0, 0, width, height)
+    font = pygame.font.Font(None, 100)
+    text = font.render('You died...', True, (255, 100, 100))
+    died_screensaver.image.blit(text, (width // 2 - 150, height // 2 - 50))
+
+
 # экран, часы менеджер интерфейса
 pygame.init()
 size = width, height = 740, 420
@@ -172,17 +136,15 @@ screen = pygame.display.set_mode(size)
 manager = pygame_gui.UIManager((width, height))
 clock = pygame.time.Clock()
 # константы
-running = True
 FPS = 60
 player_hit_cooldown = 700
 
 
-def main(entrance_x, entrance_y, player_hp=None):
-    global running
+def main_mine(entrance_x, entrance_y, player_hp=None):
+    global running, conformation_window, modes, quantities, current_quantities, all_sprites, player_group,\
+        sprite_group_collisions, enemies_group, stones_and_ores_group, hearts_group, died_screensaver_group,\
+        level, out_coords, player_x, player_y, player, interactive_zone_out, AI_matrix
 
-    # определение характеристик героя
-    with open('data/Characteristics.txt') as txt_file:
-        characteristics = {i.strip().split(': ')[0]: int(i.strip().split(': ')[1]) for i in txt_file.readlines()}
     # всплывающее окно, переход на другую локацию
     conformation_window = None
     # определение текущего задания
@@ -194,6 +156,7 @@ def main(entrance_x, entrance_y, player_hp=None):
     enemies_group = pygame.sprite.Group()
     stones_and_ores = pygame.sprite.Group()
     hearts_group = pygame.sprite.Group()
+    died_screensaver_group = pygame.sprite.Group()
     # создание уровня
     level, out_coords = create_level(entrance_x, entrance_y)
     create_walls(sprite_group_collisions, all_sprites)
@@ -212,11 +175,17 @@ def main(entrance_x, entrance_y, player_hp=None):
     time_delta = clock.tick(FPS) / 1000.0
     player_last_hit_time = -700
 
+    running = True
+    dead = False
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 terminate()
+
+            if (event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN) and dead:
+                running = False
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_e:
@@ -224,12 +193,13 @@ def main(entrance_x, entrance_y, player_hp=None):
                         entrance_x = (9 if out_coords[0] == 0 else (0 if out_coords[0] == 9 else out_coords[0]))
                         entrance_y = (4 if out_coords[1] == 0 else (0 if out_coords[1] == 4 else out_coords[1]))
                         write_quest_stats_in_file(modes, quantities, current_quantities)
-                        main(entrance_x, entrance_y, player.get_hp())
+                        main_mine(entrance_x, entrance_y, player.get_hp())
+                        running = False
 
             if event.type == pygame.MOUSEWHEEL:
                 player.change_current_tool()
 
-            if event.type == pygame.MOUSEBUTTONDOWN and event.type != pygame.MOUSEWHEEL and\
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and\
                     pygame.time.get_ticks() - player_last_hit_time > player_hit_cooldown:
                 player_last_hit_time = pygame.time.get_ticks()
 
@@ -243,6 +213,12 @@ def main(entrance_x, entrance_y, player_hp=None):
                                               zip(player_centre_coords, player_hit_direction))
 
                 if player.get_current_tool() == 'pick':
+                    player.set_anim_frame(0)
+                    if player_hit_direction[0] < 0:
+                        player.animate_dig('left')
+                    else:
+                        player.animate_dig('right')
+
                     for tile in stones_and_ores.sprites():
                         if tile.point_in_rect(*point_of_hit_coords_1) or tile.point_in_rect(*point_of_hit_coords_2) or\
                                 tile.point_in_rect(*point_of_hit_coords_3):
@@ -253,18 +229,38 @@ def main(entrance_x, entrance_y, player_hp=None):
                                 for enemy in enemies_group.sprites():
                                     enemy.determine_the_route(AI_matrix, (player_x, player_y))
 
-                                if tile.get_mode() in modes:
+                                if tile.get_mode() in modes and quantities[modes.index(tile.get_mode())] >\
+                                        current_quantities[modes.index(tile.get_mode())]:
                                     current_quantities[modes.index(tile.get_mode())] += 1
                             tile.take_damage()
 
                 elif player.get_current_tool() == 'axe':
+                    player.set_anim_frame(0)
+                    if player_hit_direction[0] < 0:
+                        player.animate_hit('left')
+                    else:
+                        player.animate_hit('right')
+
                     for enemy in enemies_group.sprites():
                         if enemy.point_in_rect(*point_of_hit_coords_1) or enemy.point_in_rect(*point_of_hit_coords_2)\
                                 or enemy.point_in_rect(*point_of_hit_coords_3):
-                            if enemy.get_hp() <= player.get_axe_damage() and enemy.get_mode() in modes:
+                            if enemy.get_hp() <= player.get_axe_damage() and enemy.get_mode() in modes\
+                                    and quantities[modes.index(enemy.get_mode())] >\
+                                    current_quantities[modes.index(enemy.get_mode())]:
                                 current_quantities[modes.index(enemy.get_mode())] += 1
                             enemy.stun_lock()
                             enemy.take_damage(player.get_axe_damage())
+
+            if event.type == pygame.USEREVENT and event.user_type == pygame_gui.UI_CONFIRMATION_DIALOG_CONFIRMED:
+                with open('data/Quest.txt') as txt_file:
+                    data = [i.strip() for i in txt_file.readlines()]
+
+                with open('data/Quest.txt', 'w') as txt_file:
+                    for item, quantity in zip(modes, quantities):
+                        txt_file.write(item + ' ' + str(quantity) + f' {quantity}\n')
+                    txt_file.write(data[-2] + '\n')
+                    txt_file.write('completed true')
+                running = False
 
             manager.process_events(event)
 
@@ -290,6 +286,15 @@ def main(entrance_x, entrance_y, player_hp=None):
 
         screen.fill((0, 0, 0))
 
+        if conformation_window is None and len(player_group.sprites()) == 0:
+            create_died_screensaver()
+            dead = True
+
+        if conformation_window is None and quantities == current_quantities and\
+                len([1 for enemy in enemies_group.sprites() if
+                     enemy.determine_the_route(AI_matrix, (player_x, player_y)) is not None]) == 0:
+            create_conformation_window("I completed the quest! It's time for me to go home...")
+
         manager.update(time_delta)
         interactive_zone_out.update()
         all_sprites.update()
@@ -299,6 +304,7 @@ def main(entrance_x, entrance_y, player_hp=None):
         player_group.draw(screen)
         draw_necessary_items_current_quantities(current_quantities)
         draw_quantity_of_hp_points(player.get_hp())
+        died_screensaver_group.draw(screen)
 
         manager.draw_ui(screen)
 
@@ -306,4 +312,5 @@ def main(entrance_x, entrance_y, player_hp=None):
         clock.tick(FPS)
 
 
-main(5, 0)
+if __name__ == '__main__':
+    main_mine(5, 0)

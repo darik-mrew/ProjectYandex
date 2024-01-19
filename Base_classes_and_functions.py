@@ -1,10 +1,10 @@
 import glob
-
 import pygame
 import sys
 import os
 import random
 from collections import deque
+import copy
 
 
 def intersection_rectangles(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2):
@@ -20,9 +20,12 @@ def intersection_rectangles(ax1, ay1, ax2, ay2, bx1, by1, bx2, by2):
 
 
 def get_next_nodes_AI(x, y, level):
-    check_next_node = lambda x, y: True if 0 <= x <= 9 and 0 <= y <= 4 and level[y][x] != 'b' else False
     ways = [-1, 0], [0, -1], [1, 0], [0, 1]
-    return [(x + dx, y + dy) for dx, dy in ways if check_next_node(x + dx, y + dy)]
+    return [(x + dx, y + dy) for dx, dy in ways if check_next_node(x + dx, y + dy, level)]
+
+
+def check_next_node(x, y, level):
+    return True if 0 <= x <= 9 and 0 <= y <= 4 and level[y][x] != 'b' else False
 
 
 def bfs(start, goal, graph):
@@ -53,6 +56,61 @@ def bfs(start, goal, graph):
 
     path = list(reversed(path[:-1]))
     return path
+
+
+def get_neighbours(x, y, matrix):
+    neighbours = []
+    for i in range(y - 1, y + 2):
+        for j in range(x - 1, x + 2):
+            if i == len(matrix) or i < 0 or j == len(matrix[0]) or j < 0 or (i == y and j == x):
+                pass
+            else:
+                neighbours.append((j, i, matrix[i][j]))
+    return neighbours
+
+
+def create_level(entrance_x, entrance_y):
+    objects = {'r': 0.6, 'm': 0.04, 'g': 0.04, 'a': 0.02, 'i': 0.3}
+    level = [random.choices(list(objects.keys()), weights=list(objects.values()), k=10) for _ in range(5)]
+
+    for y in range(len(level)):
+        for x in range(len(level[0])):
+            if level[y][x] in ['m', 'g', 'a']:
+                for neighbour in get_neighbours(x, y, level):
+                    if neighbour[2] != level[y][x] and random.random() <= 0.1:
+                        level[neighbour[1]][neighbour[0]] = copy.copy(level[y][x]) + '*'
+
+    for y in range(len(level)):
+        for x in range(len(level[0])):
+            if '*' in level[y][x]:
+                level[y][x] = level[y][x][:-1]
+
+    for y in range(len(level)):
+        for x in range(len(level[0])):
+            if level[y][x] == 'i' and random.random() <= 0.1:
+                level[y][x] = 's'
+
+    level[entrance_y][entrance_x] = 'e'
+    for neighbour in get_neighbours(entrance_x, entrance_y, level):
+        level[neighbour[1]][neighbour[0]] = 'i'
+
+    out_x, out_y = entrance_x, entrance_y
+    while out_x == entrance_x and out_y == entrance_y:
+        out_x = random.choice([0, 5, 9])
+        out_y = random.choice([0, 4]) if out_x == 5 else 2
+    level[out_y][out_x] = 'o'
+
+    return level, (out_x, out_y)
+
+
+def create_matrix_to_AI(level):
+    for y in range(len(level)):
+        for x in range(len(level[0])):
+            if level[y][x] in ['s', 'w', 'z', 'p']:
+                level[y][x] = 'i'
+            if level[y][x] != 'i':
+                level[y][x] = 'b'
+    return level
 
 
 def load_image(name, colorkey=None):
@@ -223,7 +281,7 @@ class Player(pygame.sprite.Sprite):
         if image:
             player_image = image
         else:
-            player_image = pygame.surface([64, 64])
+            player_image = pygame.Surface([64, 64])
             player_image.fill((0, 0, 0))
 
         self.image = player_image
@@ -272,9 +330,37 @@ class Player(pygame.sprite.Sprite):
         self.anim_idle_image = pygame.image.load(
             "data/images/dwstay/defdw_pickaxe.png").convert_alpha()
 
+        self.anim_hit_left_images = []
+        for i in range(1, 5):
+            image = pygame.image.load(
+                f"data/images/dwhit/dwhit{i}.png").convert_alpha()
+            self.anim_hit_left_images.append(image)
+
+        self.anim_hit_right_images = []
+        for i in range(1, 5):
+            image = pygame.image.load(
+                f"data/images/dwhit/dwhit{i}.png").convert_alpha()
+            image = pygame.transform.flip(image, True, False)
+            self.anim_hit_right_images.append(image)
+
+        self.anim_dig_right_images = []
+        for i in range(1, 4):
+            image = pygame.image.load(
+                f"data/images/dwdig/dwdig_{i}.png").convert_alpha()
+            image = pygame.transform.flip(image, True, False)
+            self.anim_dig_right_images.append(image)
+
+        self.anim_dig_left_images = []
+        for i in range(1, 4):
+            image = pygame.image.load(
+                f"data/images/dwdig/dwdig_{i}.png").convert_alpha()
+            self.anim_dig_left_images.append(image)
+
         self.anim_frame = 0
         self.anim_tick = 0
         self.anim_speed = 10
+        self.is_hitting = False
+        self.is_digging = False
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -290,16 +376,29 @@ class Player(pygame.sprite.Sprite):
         if pygame.sprite.spritecollideany(self, self.sprite_group_collisions):
             self.rect = self.rect.move(
                 -self.direction_x * self.velocity, -self.direction_y * self.velocity)
-        if self.direction_x == 0 and self.direction_y == 0:
-            self.animate_idle()
-        elif self.direction_x > 0:
-            self.animate_right_movement()
-        elif self.direction_x < 0:
-            self.animate_left_movement()
-        elif self.direction_y < 0:
-            self.animate_back_movement()
-        else:
-            self.animate_movement()
+
+        if not self.is_hitting and not self.is_digging:
+            if self.direction_x == 0 and self.direction_y == 0:
+                self.animate_idle()
+            elif self.direction_x > 0:
+                self.animate_right_movement()
+            elif self.direction_x < 0:
+                self.animate_left_movement()
+            elif self.direction_y < 0:
+                self.animate_back_movement()
+            else:
+                self.animate_movement()
+        elif self.is_hitting:
+            if self.get_hit_direction()[0] < 0:
+                self.animate_hit('left')
+            else:
+                self.animate_hit('right')
+        elif self.is_digging:
+            if self.get_hit_direction()[0] < 0:
+                self.animate_dig('left')
+            else:
+                self.animate_dig('right')
+
         self.set_direction(0, 0)
 
     def animate_movement(self):
@@ -311,6 +410,9 @@ class Player(pygame.sprite.Sprite):
                 self.anim_frame = 0
 
         self.image = self.anim_images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
 
     def animate_left_movement(self):
         self.anim_tick += 1
@@ -321,6 +423,9 @@ class Player(pygame.sprite.Sprite):
                 self.anim_frame = 0
 
         self.image = self.anim_left_images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
 
     def animate_right_movement(self):
         self.anim_tick += 1
@@ -331,9 +436,15 @@ class Player(pygame.sprite.Sprite):
                 self.anim_frame = 0
 
         self.image = self.anim_right_images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
 
     def animate_idle(self):
         self.image = self.anim_idle_image
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
 
     def animate_back_movement(self):
         self.anim_tick += 1
@@ -344,6 +455,51 @@ class Player(pygame.sprite.Sprite):
                 self.anim_frame = 0
 
         self.image = self.anim_back_images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
+
+    def animate_hit(self, left_or_right):
+        if left_or_right == 'right':
+            images = self.anim_hit_right_images
+        else:
+            images = self.anim_hit_left_images
+
+        self.is_hitting = True
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(images):
+                self.anim_frame = 0
+                self.is_hitting = False
+                self.animate_idle()
+
+        self.image = images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
+
+    def animate_dig(self, left_or_right):
+        if left_or_right == 'right':
+            images = self.anim_dig_right_images
+        else:
+            images = self.anim_dig_left_images
+
+        self.is_digging = True
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(images):
+                self.anim_frame = 0
+                self.is_digging = False
+                self.animate_idle()
+
+        self.image = images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
 
     def take_damage(self):
         if self.hp:
@@ -378,6 +534,9 @@ class Player(pygame.sprite.Sprite):
             return True
         return False
 
+    def set_anim_frame(self, anim_frame):
+        self.anim_frame = anim_frame
+
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, pos_x, pos_y, hp, mode, player, *sprite_groups):
@@ -393,6 +552,19 @@ class Enemy(pygame.sprite.Sprite):
             self.image_right.append(pygame.transform.flip(original_image, True, False))
             self.image_up.append(original_image)
             self.image_down.append(original_image)
+
+        self.anim_hit_right_images = []
+        for i in range(1, 7):
+            image = pygame.image.load(
+                f"data/images/skhit/skhit{i}.png").convert_alpha()
+            self.anim_hit_right_images.append(image)
+
+        self.anim_hit_left_images = []
+        for i in range(1, 7):
+            image = pygame.image.load(
+                f"data/images/skhit/skhit{i}.png").convert_alpha()
+            image = pygame.transform.flip(image, True, False)
+            self.anim_hit_left_images.append(image)
 
         self.image_index = 0
         self.image = self.image_right[self.image_index]
@@ -415,6 +587,7 @@ class Enemy(pygame.sprite.Sprite):
         self.anim_frame = 0
         self.anim_tick = 0
         self.anim_speed = 10
+        self.is_hitting = False
 
     def set_direction(self, direction_x, direction_y):
         self.direction_x = direction_x
@@ -433,7 +606,7 @@ class Enemy(pygame.sprite.Sprite):
     def get_centre_coords(self):
         return self.rect.x + self.rect.width // 2, self.rect.y + self.rect.height // 2
 
-    def get_pos_as_board(self):  # отсчет с нуля
+    def get_pos_as_board(self):
         pos_x = (self.rect.x + self.rect.width // 2 - 50) // 64
         pos_y = (self.rect.y + self.rect.height // 2 - 50) // 64
         return pos_x, pos_y
@@ -473,13 +646,37 @@ class Enemy(pygame.sprite.Sprite):
         if self.timer - self.last_hit_time > 1000 and self.cooldown:
             self.cooldown = False
             self.hit()
+            self.is_hitting = True
 
         if self.route == [] and not self.cooldown:
             self.stun_lock()
 
         self.timer = pygame.time.get_ticks()
 
-        self.animate_movement()
+        if not self.is_hitting:
+            self.animate_movement()
+        else:
+            self.animate_hit('right' if self.get_hit_direction()[0] > 0 else 'left')
+
+    def animate_hit(self, left_or_right):
+        if left_or_right == 'right':
+            images = self.anim_hit_right_images
+        else:
+            images = self.anim_hit_left_images
+
+        self.is_hitting = True
+        self.anim_tick += 1
+        if self.anim_tick >= self.anim_speed:
+            self.anim_tick = 0
+            self.anim_frame += 1
+            if self.anim_frame >= len(images):
+                self.anim_frame = 0
+                self.is_hitting = False
+
+        self.image = images[self.anim_frame]
+        x = self.rect.x
+        y = self.rect.y
+        self.rect = self.image.get_rect().move(x, y)
 
     def hit(self):
         if abs(self.player.get_centre_coords()[0] - self.get_centre_coords()[0]) <= 64 and \
@@ -512,12 +709,12 @@ class Enemy(pygame.sprite.Sprite):
                 if self.image_index >= len(self.image_left):
                     self.image_index = 0
                 self.image = self.image_left[self.image_index]
-            elif self.direction_y > 0:
+            elif self.direction_y != 0:
                 self.image_index += 1
                 self.image_index = int(self.image_index)
-                if self.image_index >= len(self.image_down):
+                if self.image_index >= len(self.image_right):
                     self.image_index = 0
-                self.image = self.image_down[self.image_index]
+                self.image = self.image_right[self.image_index]
 
     def determine_the_route(self, level, player_coords):
         graph = {}
@@ -528,3 +725,5 @@ class Enemy(pygame.sprite.Sprite):
                     graph[(x, y)] = graph.get((x, y), []) + get_next_nodes_AI(x, y, level)
 
         self.route = bfs(self.get_pos_as_board(), player_coords, graph)
+
+        return self.route
